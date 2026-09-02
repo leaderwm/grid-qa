@@ -108,12 +108,19 @@ async def record_feedback(
         )
     if not structured and retrieval_sources:
         structured = normalize_sources([], retrieval_sources)
+    # sources_json 落 MySQL TEXT(64KB)：无上限时超限 commit 抛 DataError → 整条反馈 500 丢失。
+    # 条数封顶 + 逐条收缩直到可落库（同 reason/retrieval_sources 的边界截断风格）。
+    structured = structured[:50]
+    sources_json = json.dumps(structured, ensure_ascii=False) if structured else ""
+    while len(sources_json.encode("utf-8")) > 60000 and structured:
+        structured = structured[:-1]
+        sources_json = json.dumps(structured, ensure_ascii=False) if structured else ""
     fb = Feedback(
         conversation_id=conversation_id or "", query=query, answer=answer,
         feedback=feedback, username=username, reason=(reason or "")[:256],
         retrieval_sources=(retrieval_sources or "")[:2000],
         trace_id=(trace_id or "")[:64],
-        sources_json=json.dumps(structured, ensure_ascii=False) if structured else "",
+        sources_json=sources_json,
         tenant_id=tenant_id or "default",
     )
     db.add(fb)
