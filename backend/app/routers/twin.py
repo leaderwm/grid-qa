@@ -99,7 +99,11 @@ async def push_alert(
     Body: {severity, title, device/deviceId, summary}
     """
     body = await request.json()
-    data = await twin_service.push_alert_location(body, station_id=stationId or None)
+    try:
+        data = await twin_service.push_alert_location(body, station_id=stationId or None)
+    except twin_service.TwinStationError as exc:
+        # 与同文件 station_layout 等端点对齐：非法/未知 stationId 返回 404 而非 500
+        raise BizError(str(exc), 404)
     return success(data=data)
 
 
