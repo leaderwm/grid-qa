@@ -108,7 +108,8 @@ services:
       - ./data/redis:/data
     command: redis-server --appendonly yes --maxmemory 300mb --maxmemory-policy noeviction --maxmemory-samples 10 --requirepass grid-langfuse-pass
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # 已开 requirepass：无认证 ping 的 NOAUTH 回复退出码仍为 0，需带密码并校验 PONG
+      test: ["CMD-SHELL", "redis-cli -a grid-langfuse-pass ping | grep PONG"]
       interval: 10s
       timeout: 3s
       retries: 5

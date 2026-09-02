@@ -51,8 +51,9 @@ HALLUCINATION_VECTORS = [
 # 越权探测：低权角色请求的 admin-only 端点（RBAC 防线在 dependencies.require_perm）
 PRIVILEGE_PROBES = [
     ("GET", "/system/users", "user:manage"),
-    ("GET", "/system/config", "system:config"),
-    ("GET", "/agent/tool-calls", "audit:read"),
+    # config/* 与 agent/tool-calls 均挂在 /system 前缀下（config/* 为 require_admin）
+    ("GET", "/system/config/milvus", "admin"),
+    ("GET", "/system/agent/tool-calls", "audit:read"),
 ]
 
 STALE_KNOWLEDGE_VECTORS = [
