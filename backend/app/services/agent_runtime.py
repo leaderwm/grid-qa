@@ -114,8 +114,8 @@ class ToolRegistry:
                 )
                 return f"权限不足：工具 {name} 需 {allowed_roles} 角色", True
         tool_args = dict(args) if isinstance(args, dict) else {}
-        # tenant 是运行时保留参数，LLM/用户参数无权指定或覆盖。
-        for reserved in ("tenant", "tenant_id", "tenantId"):
+        # tenant/creator 是运行时保留参数，LLM/用户参数无权指定或覆盖。
+        for reserved in ("tenant", "tenant_id", "tenantId", "creator"):
             tool_args.pop(reserved, None)
         if ctx is not None:
             tenant = str(ctx.get("tenant") or "default").strip() or "default"
@@ -131,6 +131,17 @@ class ToolRegistry:
             if not tenant_aware:
                 return f"工具 {name} 未声明租户隔离能力，已拒绝调用", True
             tool_args["tenant"] = tenant
+            # creator 同理取登录态：防 LLM 幻觉/注入伪造开票人（如 _t_create_ticket）。
+            username = str(ctx.get("username") or "").strip()
+            if username:
+                try:
+                    creator_aware = any(
+                        parameter.name == "creator" for parameter in parameters
+                    )
+                except (TypeError, ValueError):
+                    creator_aware = False
+                if creator_aware:
+                    tool_args["creator"] = username
         error = False
         _tool_t0 = time.perf_counter()
         try:

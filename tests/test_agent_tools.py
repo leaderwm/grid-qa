@@ -76,3 +76,49 @@ def test_registry_flag_on(monkeypatch):
     reg = svc.build_default_registry()
     assert reg.get("create_ticket") is not None
     assert reg.get("submit_ticket") is not None
+
+
+def test_creator_reserved_injected_from_ctx(monkeypatch):
+    """creator 是运行时保留参数：LLM args 里的 creator 被剥掉，注入登录态用户名。"""
+    from app.services.agent_runtime import Tool, ToolRegistry
+
+    seen = {}
+
+    async def fake_audit(*args, **kwargs):
+        return None
+
+    async def handler(db, model_type, task="", tenant=None, creator=""):
+        seen.update(creator=creator, tenant=tenant)
+        return "ok"
+
+    monkeypatch.setattr(
+        "app.services.agent_tool_audit_service.log_tool_call", fake_audit,
+    )
+    registry = ToolRegistry()
+    registry.register(Tool("fake_create", "d", {}, handler))
+    result, error = asyncio.run(registry.run(
+        None, None, "fake_create",
+        {"task": "x", "creator": "spoofed"},
+        ctx={"username": "alice", "tenant": "t1"},
+    ))
+    assert error is False and result == "ok"
+    assert seen == {"creator": "alice", "tenant": "t1"}
+
+
+def test_creator_stripped_without_ctx(monkeypatch):
+    """无登录态（老链路 ctx=None）：creator 一律剥掉，落 handler 默认空串。"""
+    from app.services.agent_runtime import Tool, ToolRegistry
+
+    seen = {}
+
+    async def handler(db, model_type, task="", creator=""):
+        seen.update(creator=creator)
+        return "ok"
+
+    registry = ToolRegistry()
+    registry.register(Tool("fake_create", "d", {}, handler))
+    result, error = asyncio.run(registry.run(
+        None, None, "fake_create", {"task": "x", "creator": "spoofed"},
+    ))
+    assert error is False and result == "ok"
+    assert seen == {"creator": ""}
