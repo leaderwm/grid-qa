@@ -1,4 +1,5 @@
 """pytest 配置：把 backend 加入 sys.path。"""
+import os
 import sys
 import asyncio
 import pytest
@@ -6,6 +7,14 @@ import pytest_asyncio
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+
+# openai>=3 起 AsyncOpenAI() 构造时即校验凭据（2.x 延迟到首次请求才查）；
+# 而 SDK 仅在 api_key=None 时回退读 OPENAI_API_KEY 环境变量，config 默认空串
+# 会被原样传入 → provider 构造即抛 "Missing credentials"。
+# 注入哑 key 仅为满足构造校验：单测中所有 LLM 请求均被 mock，不会真实外发。
+# 必须在 app.config 的 Settings 实例化（下方 import）之前生效。
+for _k in ("DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "ARK_API_KEY"):
+    os.environ.setdefault(_k, "sk-test-dummy")
 
 from app.db.session import engine
 
